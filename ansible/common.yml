@@ -1,0 +1,49 @@
+---
+- hosts: all
+  become: true
+  tasks:
+    - name: Set domain name
+      shell: |
+        hostnamectl set-hostname $(hostname | awk -F '.' '{ print $1 }').example.com
+
+    - name: Generate /etc/hosts
+      shell: |
+        echo -en > /tmp/hosts.tmp
+        echo "127.0.0.1 localhost  localhost.localdomain localhost4 localhost4.localdomain4" >> /tmp/hosts.tmp
+        echo "127.0.0.1 localhost  localhost.localdomain localhost6 localhost6.localdomain6" >> /tmp/hosts.tmp
+        for i in $(seq 1 {{ MASTER_COUNT }}); do
+          echo "192.168.56.$[50+$i] master$i.example.com master$i" >> /tmp/hosts.tmp
+        done
+        for i in $(seq 1 {{ NODE_COUNT }}); do
+          echo "192.168.56.$[60+$i] node$i.example.com node$i" >> /tmp/hosts.tmp
+        done
+        mv /tmp/hosts.tmp /etc/hosts
+
+    - name: Create /root/.ssh directory
+      file:
+        path: /root/.ssh
+        state: directory
+        mode: 0600
+        owner: root
+        group: root
+
+    - name: Add SSH private key
+      template:
+        src: ../keys/id_rsa
+        dest: ~/.ssh/id_rsa
+        mode: 0600
+        owner: root
+        group: root
+
+    - name: Add SSH public key
+      template:
+        src: ../keys/id_rsa.pub
+        dest: ~/.ssh/id_rsa.pub
+        mode: 0600
+        owner: root
+        group: root
+
+    - name: Add SSH authorized keys
+      shell: |
+        grep "$(cat ~/.ssh/id_rsa.pub)" ~/.ssh/authorized_keys || \
+        cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys

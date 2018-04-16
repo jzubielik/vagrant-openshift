@@ -1,0 +1,21 @@
+---
+- hosts: all
+  become: true
+  tasks:
+  - name: Add SSH fingerprints
+    shell: |
+      rm ~/.ssh/known_hosts
+      for i in $(seq 1 {{ MASTER_COUNT }}); do
+        ssh -oStrictHostKeyChecking=no 192.168.56.$[50+$i] cat /etc/hostname
+        ssh -oStrictHostKeyChecking=no master$i cat /etc/hostname
+        ssh -oStrictHostKeyChecking=no master$i.example.com cat /etc/hostname
+      done
+
+      for i in $(seq 1 {{ NODE_COUNT }}); do
+        ssh -oStrictHostKeyChecking=no 192.168.56.$[60+$i] cat /etc/hostname
+        ssh -oStrictHostKeyChecking=no node$i cat /etc/hostname
+        ssh -oStrictHostKeyChecking=no node$i.example.com cat /etc/hostname
+      done
+    register: output
+
+  - debug: msg="{{ output }}"

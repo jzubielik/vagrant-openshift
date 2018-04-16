@@ -1,0 +1,86 @@
+---
+- hosts: all
+  become: true
+  tasks:
+    - name: Install EPEL
+      yum:
+        name: epel-release
+
+    - name: Enable EPEL
+      yum_repository:
+        name: epel
+        description: EPEL YUM repo
+        baseurl: https://download.fedoraproject.org/pub/epel/$releasever/$basearch/
+        gpgcheck: no
+        enabled: yes
+
+    - name: Install dependencies (1/2)
+      yum:
+        name: "{{ item }}"
+        update_cache: yes
+      with_items:
+        - ansible
+        - bash-completion
+        - bind-utils
+        - bridge-utils
+        - docker-{{ DOCKER_VERSION }}
+        - git
+        - iptables-services
+        - kexec-tools
+        - net-tools
+        - psacct
+        - sos
+        - vim
+        - python2-pip
+
+    - name: Install dependencies (2/2)
+      pip:
+        name: "{{ item }}"
+      with_items:
+        - passlib
+
+    - name: Disable EPEL
+      yum_repository:
+        name: epel
+        description: EPEL YUM repo
+        baseurl: https://download.fedoraproject.org/pub/epel/$releasever/$basearch/
+        gpgcheck: yes
+        enabled: no
+
+    - name: Create Ansbile host inventory
+      shell: |
+        cat <<EOF | sed -e 's/^\s*//' >/etc/ansible/hosts
+        [OSEv3:children]
+        masters
+        etcd
+        nodes
+
+        [OSEv3:vars]
+        ansible_ssh_user=root
+        containerized=false
+        openshift_deployment_type=origin
+        openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 'challenge': 'true', 'kind': 'HTPasswdPasswordIdentityProvider', 'filename': '/etc/origin/master/htpasswd'}]
+        # openshift_release=v3.9
+        # openshift_image_tag=v3.9.0
+        openshift_disable_check=memory_availability,docker_storage,disk_availability,package_version
+        openshift_master_default_subdomain=apps.example.com
+        openshift_hosted_registry_routehost=registry.apps.example.com
+        os_firewall_enabled=true
+
+        [masters]
+        $(for i in $(seq 1 {{ MASTER_COUNT}}); do echo "master$i.example.com openshift_ip=192.168.56.$[50+$i]"; done)
+
+        [etcd]
+        $(for i in $(seq 1 {{ MASTER_COUNT}}); do echo "master$i.example.com openshift_ip=192.168.56.$[50+$i]"; done)
+
+        [nodes]
+        $(for i in $(seq 1 {{ MASTER_COUNT}}); do echo "master$i.example.com openshift_ip=192.168.56.$[50+$i] openshift_schedulable=True openshift_node_labels=\"{'region': 'infra'}\""; done)
+        $(for i in $(seq 1 {{ NODE_COUNT}}); do echo "node$i.example.com openshift_ip=192.168.56.$[60+$i] openshift_schedulable=True openshift_node_labels=\"{'region': 'infra'}\""; done)
+      when: inventory_hostname | regex("master1")
+
+    - name: Get openshift-ansible repository
+      git:
+        repo: https://github.com/openshift/openshift-ansible.git
+        dest: /root/openshift-ansible
+        version: "{{ OPENSHIFT_RELEASE_BRANCH }}"
+      when: inventory_hostname | regex("master1")
