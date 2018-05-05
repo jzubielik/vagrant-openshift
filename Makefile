@@ -13,11 +13,10 @@ ifndef OPENSHIFT_VERSION
 OPENSHIFT_VERSION = 3.7
 OPENSHIFT_RELEASE_BRANCH = release-$(OPENSHIFT_VERSION)-hotfix
 DOCKER_VERSION = 1.12.6
-else
+endif
 ifeq ($(OPENSHIFT_VERSION), 3.9)
 OPENSHIFT_RELEASE_BRANCH = release-$(OPENSHIFT_VERSION)
 DOCKER_VERSION = 1.13.1
-endif
 endif
 
 ifdef NODE
@@ -75,13 +74,12 @@ install:
 ifeq ($(OPENSHIFT_VERSION), 3.7)
 	vagrant ssh $(PROJECT)-master1 -c \
 		"sudo su - -c 'ansible-playbook ~/openshift-ansible/playbooks/byo/config.yml'"
-else
-ifeq ($(OPENSHIFT_VERSION), 3.7)
+endif
+ifeq ($(OPENSHIFT_VERSION), 3.9)
 	vagrant ssh $(PROJECT)-master1 -c \
 		"sudo su - -c 'ansible-playbook ~/openshift-ansible/playbooks/prerequisites.yml'" && \
 	vagrant ssh $(PROJECT)-master1 -c \
 		"sudo su - -c 'ansible-playbook ~/openshift-ansible/playbooks/deploy_cluster.yml'"
-endif
 endif
 	ANSIBLE_HOST_KEY_CHECKING=False \
 	ansible-playbook \
